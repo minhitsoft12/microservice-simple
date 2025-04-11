@@ -1,6 +1,7 @@
 import {GenderEnumType, MaritalStatusEnumType, UserStatusEnumType} from "../enums/user.enum";
 
 export interface User {
+    _id: string
     name: string;
     nickName?: string;
     bio?: string;
