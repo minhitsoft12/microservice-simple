@@ -1,7 +1,11 @@
 declare module '@shared/*' {
   export const SERVICE_NAMES: Record<'AUTH_SERVICE' | 'USER_SERVICE', string>;
   export const UserServiceTCPMessages: Record<
-    'VERIFICATION' | 'GET_PROFILE' | 'UPDATE_PROFILE' | 'DELETE_ACCOUNT',
+    | 'VERIFICATION'
+    | 'GET_PROFILE'
+    | 'UPDATE_PROFILE'
+    | 'DELETE_ACCOUNT'
+    | 'GET_ROLE_PERMISSIONS',
     string
   >;
 
