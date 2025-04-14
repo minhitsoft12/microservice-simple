@@ -11,6 +11,7 @@ import { ClientProxy } from '@nestjs/microservices';
 import { SERVICE_NAMES } from '@shared/constants/service-names.constant';
 import { UserServiceTCPMessages } from '@shared/constants/tcp-messages/user-service.constant';
 import { firstValueFrom } from 'rxjs';
+import { UserStatusEnum } from '@shared/enums/user.enum';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -32,7 +33,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       // Get the complete user profile with role and permissions
       const response = await firstValueFrom(
         this.userServiceClient.send(UserServiceTCPMessages.GET_PROFILE, {
-          userId: payload.sub,
+          user: {
+            _id: payload.sub,
+            name: payload.name,
+          },
         }),
       );
 
@@ -46,7 +50,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       const user = response.data.user;
 
       // Check if user is active
-      if (user.status !== 'ACTIVE') {
+      if (user.status === UserStatusEnum.INACTIVE) {
         this.logger.warn(`Inactive user attempted access: ${payload.sub}`);
         throw new UnauthorizedException('User account is not active');
       }
@@ -54,10 +58,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       // Get user permissions based on role
       const permissionsResponse = await firstValueFrom(
         this.userServiceClient.send(
-          UserServiceTCPMessages.GET_ROLE_PERMISSIONS,
-          {
-            roleId: user.roleId,
-          },
+          `${UserServiceTCPMessages.GET_PERMISSION_BY_ROLE}.${user.roleId._id}`,
+          {},
         ),
       );
 
@@ -75,7 +77,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       };
     } catch (error) {
       this.logger.error(`JWT validation error: ${error.message}`, error.stack);
-      throw new UnauthorizedException('Invalid token');
+      throw new UnauthorizedException(`JWT validation error: ${error.message}`);
     }
   }
 }
