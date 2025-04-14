@@ -1,4 +1,9 @@
-import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
@@ -9,6 +14,8 @@ import { firstValueFrom } from 'rxjs';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
+  private readonly logger = new Logger(JwtStrategy.name);
+
   constructor(
     private configService: ConfigService,
     @Inject(SERVICE_NAMES.USER_SERVICE) private userServiceClient: ClientProxy,
@@ -20,7 +27,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: any) {
+  async validate(payload: any): Promise<any> {
     try {
       // Get the complete user profile with role and permissions
       const response = await firstValueFrom(
@@ -30,7 +37,18 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       );
 
       if (response.status !== 200 || !response.data.user) {
+        this.logger.warn(
+          `User not found during JWT validation: ${payload.sub}`,
+        );
         throw new UnauthorizedException('User not found');
+      }
+
+      const user = response.data.user;
+
+      // Check if user is active
+      if (user.status !== 'ACTIVE') {
+        this.logger.warn(`Inactive user attempted access: ${payload.sub}`);
+        throw new UnauthorizedException('User account is not active');
       }
 
       // Get user permissions based on role
@@ -38,21 +56,25 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         this.userServiceClient.send(
           UserServiceTCPMessages.GET_ROLE_PERMISSIONS,
           {
-            roleId: response.data.user.roleId,
+            roleId: user.roleId,
           },
         ),
       );
 
       if (permissionsResponse.status !== 200) {
+        this.logger.warn(
+          `Failed to retrieve permissions for user: ${payload.sub}`,
+        );
         throw new UnauthorizedException('Failed to retrieve user permissions');
       }
 
       // Return user with permissions
       return {
-        ...response.data.user,
+        ...user,
         permissions: permissionsResponse.data.permissions,
       };
     } catch (error) {
+      this.logger.error(`JWT validation error: ${error.message}`, error.stack);
       throw new UnauthorizedException('Invalid token');
     }
   }

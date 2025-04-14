@@ -27,7 +27,7 @@ import { LocalStrategy } from './strategies/local.strategy';
           transport: Transport.TCP,
           options: {
             host: configService.get('USER_SERVICE_HOST', 'localhost'),
-            port: configService.get('USER_SERVICE_PORT', 4000),
+            port: configService.get('USER_SERVICE_PORT', 4001),
           },
         }),
         inject: [ConfigService],

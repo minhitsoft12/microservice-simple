@@ -5,7 +5,8 @@ declare module '@shared/*' {
     | 'GET_PROFILE'
     | 'UPDATE_PROFILE'
     | 'DELETE_ACCOUNT'
-    | 'GET_ROLE_PERMISSIONS',
+    | 'GET_ROLE_PERMISSIONS'
+    | 'UPDATE_USER',
     string
   >;
 
