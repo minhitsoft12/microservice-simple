@@ -1,4 +1,0 @@
-export const SERVICE_NAMES = {
-    AUTH_SERVICE: 'AUTH_SERVICE',
-    USER_SERVICE: 'USER_SERVICE',
-};
