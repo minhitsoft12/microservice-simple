@@ -1,0 +1,138 @@
+version: '3.8'
+
+services:
+  api-gateway:
+    build:
+      context: ./i-api-gateway
+      dockerfile: Dockerfile
+      target: builder
+    volumes:
+      - ./i-api-gateway:/app
+      - /app/node_modules
+    expose:
+      - ${API_GATEWAY_PORT:-4000}
+    ports:
+      - "${API_GATEWAY_PORT:-4000}:${API_GATEWAY_PORT:-4000}"
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      HOST: ${API_GATEWAY_HOST:-4000}
+      PORT: ${API_GATEWAY_PORT:-4000}
+      USER_SERVICE_HOST: ${USER_SERVICE_HOST:-user-service}
+      USER_SERVICE_PORT: ${USER_SERVICE_PORT:-4001}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-your_jwt_access_secret_key}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-your_jwt_refresh_secret_key}
+      JWT_ACCESS_EXPIRATION: ${JWT_ACCESS_EXPIRATION:-1h}
+      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-7d}
+      CORS_ORIGINS: "${CORS_ORIGINS:-*}"
+    command: npm run start:dev
+    networks:
+      - microservices-network
+    depends_on:
+      - user-service
+    restart: unless-stopped
+
+  user-service:
+    build:
+      context: ./i-user-service
+      dockerfile: Dockerfile
+      target: builder
+    environment:
+      APP_MODE: SERVICE
+      NODE_ENV: ${NODE_ENV:-development}
+      HOST: ${USER_SERVICE_HOST:-user-service}
+      PORT: 8001
+      TCP_PORT: ${USER_SERVICE_PORT:-4001}
+      MONGO_URI: ${USER_SERVICE_MONGODB_URI:-mongodb://user-service_database:27017/userdb}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-your_jwt_access_secret_key}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-your_jwt_refresh_secret_key}
+      JWT_ACCESS_EXPIRATION: ${JWT_ACCESS_EXPIRATION:-1h}
+      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-7d}
+    volumes:
+      - ./i-user-service:/app
+      - /app/node_modules
+    expose:
+      - ${USER_SERVICE_PORT:-4001}
+    ports:
+      - "${USER_SERVICE_PORT:-4001}:${USER_SERVICE_PORT:-4001}"
+    command: npm run dev
+    networks:
+      - microservices-network
+    depends_on:
+      - user-service_database
+    restart: unless-stopped
+
+  asm-service:
+    build:
+      context: ./i-asm-be
+      dockerfile: Dockerfile
+      target: builder
+    volumes:
+      - ./i-asm-be:/app
+      - /app/node_modules
+    expose:
+      - ${ASM_SERVICE_PORT:-4002}
+    ports:
+      - "${ASM_SERVICE_PORT:-4002}:${ASM_SERVICE_PORT:-4002}"
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      HOST: ${ASM_SERVICE_HOST:-4000}
+      PORT: ${ASM_SERVICE_PORT:-4000}
+      DB_HOST: ${ASM_SERVICE_DB:-asm-service_database}
+      DB_PORT: ${ASM_SERVICE_DB_PORT:-3306}
+      DB_NAME: ${ASM_SERVICE_DB_NAME:-asm-service}
+      DB_USERNAME: ${ASM_SERVICE_DB_USER:-asm-service}
+      DB_PASSWORD: ${ASM_SERVICE_DB_PASSWORD:-Dym@2025}
+      USER_SERVICE_HOST: ${USER_SERVICE_HOST:-user-service}
+      USER_SERVICE_PORT: ${USER_SERVICE_PORT:-4001}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-your_jwt_access_secret_key}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-your_jwt_refresh_secret_key}
+      JWT_ACCESS_EXPIRATION: ${JWT_ACCESS_EXPIRATION:-1h}
+      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-7d}
+      CORS_ORIGINS: "${CORS_ORIGINS:-*}"
+    command: npm run start:dev
+    networks:
+      - microservices-network
+    depends_on:
+      - asm-service_database
+    restart: unless-stopped
+
+#  Setup Databases
+  asm-service_database:
+    image: db/mysql
+    build: ./docker/mysql
+    ports:
+      - "3306:3306"
+    volumes:
+      - asm-service_db:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: '${ASM_SERVICE_DB_PASSWORD:-Dym@2025}'
+      MYSQL_DATABASE: '${ASM_SERVICE_DB_NAME:-asm_service}'
+      MYSQL_USER: '${ASM_SERVICE_DB_USER:-asm_service}'
+      MYSQL_PASSWORD: '${ASM_SERVICE_DB_PASSWORD}'
+    networks:
+      - microservices-network
+
+  user-service_database:
+    image: db/mongodb
+    build: ./docker/mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - user-service_db:/data/db
+    networks:
+      - microservices-network
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "mongosh", "--eval", "db.adminCommand('ping')" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+networks:
+  microservices-network:
+    driver: bridge
+
+volumes:
+  user-service_db:
+  asm-service_db:

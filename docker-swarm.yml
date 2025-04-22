@@ -1,0 +1,93 @@
+version: '3.8'
+
+services:
+  api-gateway:
+    image: ${REGISTRY:-localhost}/api-gateway:${TAG:-latest}
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=production
+      - API_GATEWAY_PORT=4000
+      - USER_SERVICE_HOST=user-service
+      - USER_SERVICE_PORT=4001
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET:-a6ce7769362f350881f3de9257af50f98656741e35fd7a0bd2eaf5bc6edc730e}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-c93a5e4c8630e8d60682607df34db501bf1c4559be3ada8442534932953a85fb}
+      - JWT_ACCESS_EXPIRATION=${JWT_ACCESS_EXPIRATION:-1h}
+      - JWT_REFRESH_EXPIRATION=${JWT_REFRESH_EXPIRATION:-7d}
+      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+    ports:
+      - "4000:4000"
+    networks:
+      - microservices-network
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  user-service:
+    image: ${REGISTRY:-localhost}/user-service:${TAG:-latest}
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=production
+      - MONGODB_URI=mongodb://mongodb:27017/userdb
+      - PORT=4001
+    networks:
+      - microservices-network
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  mongodb:
+    image: mongo:latest
+    volumes:
+      - mongodb-data:/data/db
+    ports:
+      - "27017:27017"
+    networks:
+      - microservices-network
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+        window: 120s
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+networks:
+  microservices-network:
+    driver: overlay
+
+volumes:
+  mongodb-data:
+    driver: local

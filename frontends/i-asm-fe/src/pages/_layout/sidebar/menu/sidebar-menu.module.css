@@ -1,0 +1,15 @@
+.sidebarMenu {
+  user-select: none;
+}
+
+.sidebarMenu > .sidebarMenuItem {
+  border-style: solid;
+  border-color: #3f4c7c;
+  border-bottom-width: 1px;
+}
+
+.sidebarSubMenu .sidebarMenuItem span {
+  border-style: solid;
+  border-color: #3f4c7c;
+  border-top-width: 1px;
+}

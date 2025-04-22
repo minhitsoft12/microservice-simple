@@ -1,0 +1,49 @@
+version: '3.7'
+
+services:
+  mysql:
+    image: db/mysql
+    build: ./mysql
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=your_root_password
+      - MYSQL_DATABASE=your_database
+      - MYSQL_USER=your_user
+      - MYSQL_PASSWORD=your_password
+    networks:
+      - database-network
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "mysql", "ping", "-h", "localhost", "-u", "root", "--password=${MYSQL_ROOT_PASSWORD}" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  mongodb:
+    image: db/mongodb
+    build: ./mongodb
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongodb-data:/data/db
+    networks:
+      - database-network
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "mongosh", "--eval", "db.adminCommand('ping')" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+networks:
+  database-network:
+    driver: bridge
+
+volumes:
+  mongodb-data:
+  mysql-data:
