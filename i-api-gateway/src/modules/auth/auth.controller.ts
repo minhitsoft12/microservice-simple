@@ -1,10 +1,11 @@
-import { Body, Controller, Get, Logger, Post, Request } from '@nestjs/common';
+import {Body, Controller, Get, Logger, Post, Req, Request, Res, UseGuards} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { Public } from './decorators/public.decorator';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/tokens.dto';
 import { ApiRouteNames } from '../../shared/enums/api.enum';
+import {GoogleAuthGuard} from "./guards/google-auth.guard";
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -42,5 +43,29 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   getProfile(@Request() req): any {
     return req.user;
+  }
+
+  @Public()
+  @Get('google')
+  @UseGuards(GoogleAuthGuard)
+  @ApiOperation({ summary: 'Login with Google' })
+  googleAuth() {
+    // The request is handled by passport-google-oauth20
+    // This route will redirect to Google
+  }
+
+  @Public()
+  @Get('google/callback')
+  @UseGuards(GoogleAuthGuard)
+  @ApiOperation({ summary: 'Google auth callback' })
+  @ApiResponse({ status: 200, description: 'Login successful' })
+  async googleAuthRedirect(@Req() req, @Res() res): Promise<any> {
+    this.logger.log(`Google login callback for user: ${req.user?.email}`);
+    const result = await this.authService.googleLogin(req.user);
+
+    // You can redirect to frontend with token as query param
+    // or handle this however you need based on your frontend setup
+    const redirectUrl = `http://localhost:3002/auth/callback?token=${result.access_token}&refresh=${result.refresh_token}`;
+    return res.redirect(redirectUrl);
   }
 }

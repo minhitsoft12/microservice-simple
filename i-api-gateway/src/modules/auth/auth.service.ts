@@ -69,6 +69,33 @@ export class AuthService {
     };
   }
 
+  async googleLogin(googleUser: any) {
+    try {
+      // First check if user exists
+      const findUserResponse = await firstValueFrom(
+        // this.userServiceClient.send(UserServiceTCPMessages.GOOGLE_AUTH, {
+        this.userServiceClient.send('USER.GOOGLE_AUTH', {
+          provider: "GOOGLE",
+          displayName: googleUser.name,
+          providerId: googleUser.sub,
+          picture: googleUser.picture,
+          email: googleUser.email,
+        }),
+      );
+
+      if (findUserResponse.status !== 200) {
+        this.logger.error(`Google auth failed: ${findUserResponse?.data?.message}`);
+        throw new UnauthorizedException('Google authentication failed');
+      }
+
+      const user = findUserResponse.data.user;
+      return this.login(user);
+    } catch (error) {
+      this.logger.error(`Google login error: ${error.message}`, error.stack);
+      throw new UnauthorizedException('Google authentication failed');
+    }
+  }
+
   async refreshTokens(refreshToken: string) {
     try {
       // Verify the refresh token

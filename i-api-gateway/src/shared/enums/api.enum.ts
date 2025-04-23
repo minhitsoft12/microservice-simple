@@ -4,6 +4,8 @@ enum ApiRouteNames {
   SIGN_UP = "register",
   REFRESH_TOKEN = "refresh-token",
   PROFILE = "profile",
+  GOOGLE_LOGIN = "google",
+  GOOGLE_CALLBACK = "google/callback",
 }
 
 export { ApiRouteNames };
