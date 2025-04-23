@@ -4,6 +4,7 @@ import {
   appRoutes
 } from "@/shared/constants/routes.constant.ts";
 import Unauthorized from "@/pages/errors/Unauthorized.tsx";
+import GoogleAuthCallback from "@/pages/auth/GoogleAuthCallback.tsx";
 
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Login = lazy(() => import("@/pages/auth/Login.tsx"));
@@ -26,6 +27,11 @@ export const routes: RouteConfig[] = [
   {
     path: appRoutes[AppRouteNames.SIGN_IN],
     element: Login,
+    auth: false
+  },
+  {
+    path: appRoutes[AppRouteNames.GOOGLE_CALLBACK],
+    element: GoogleAuthCallback,
     auth: false
   },
   {

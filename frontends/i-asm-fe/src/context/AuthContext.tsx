@@ -10,7 +10,7 @@ import {
 import { jwtDecode } from "jwt-decode";
 import { authApi } from "@/services/api/apiAuth.service";
 import { AuthObjectKeyEnum } from "@/shared/enums/auth.enum.ts";
-import {User} from "@dym-vietnam/internal-shared";
+import { User } from "@dym-vietnam/internal-shared";
 
 interface DecodedToken {
   sub: string;
@@ -34,6 +34,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<User>;
+  loginWithGoogle: (response: AuthResponse) => Promise<User>;
   logout: () => void;
   refreshToken: () => Promise<boolean>;
   hasPermission: (permission: string | string[]) => boolean;
@@ -222,6 +223,33 @@ export const AuthProvider = ({
     }
   };
 
+  const loginWithGoogle = async (response: AuthResponse) => {
+    setIsLoading(true);
+    try {
+      localStorage.setItem(
+        AuthObjectKeyEnum.ACCESS_TOKEN,
+        response.access_token
+      );
+      localStorage.setItem(
+        AuthObjectKeyEnum.REFRESH_TOKEN,
+        response.refresh_token
+      );
+
+      setUser(response.user);
+      userProfileTimestamp.current = Date.now();
+      permissionCache.current.clear();
+
+      scheduleTokenRefresh();
+
+      return response.user;
+    } catch (error) {
+      console.error("Google login error:", error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   /**
    * Handle logout
    */
@@ -341,6 +369,7 @@ export const AuthProvider = ({
     isAuthenticated: !!user,
     isLoading,
     login,
+    loginWithGoogle,
     logout,
     refreshToken,
     hasRole,

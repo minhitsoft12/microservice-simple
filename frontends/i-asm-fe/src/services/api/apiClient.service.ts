@@ -52,7 +52,6 @@ class ApiClientService {
     data?: any,
     config?: AxiosRequestConfig
   ): Promise<T> {
-    console.log(this.client.getUri());
     const response: AxiosResponse<T> = await this.client.post(
       url,
       data,

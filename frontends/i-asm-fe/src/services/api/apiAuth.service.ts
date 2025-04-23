@@ -35,5 +35,11 @@ export const authApi = {
 
   getUserProfile: async () => {
     return await apiClient.get(apiRoutes[ApiRouteNames.PROFILE]);
+  },
+
+  getGoogleAuthUrl: async () => {
+    const response = await apiClient.get(apiRoutes[ApiRouteNames.GOOGLE_AUTH]);
+    console.log(response);
+    return response.authUrl;
   }
 };
