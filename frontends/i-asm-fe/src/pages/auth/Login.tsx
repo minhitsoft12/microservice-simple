@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import LoginGoogle from "@/features/auth/LoginGoogle";
 import { useAuth } from "@/context/AuthContext";
 import { AppRouteNames, appRoutes } from "@/shared/constants/routes.constant";
 
@@ -32,7 +31,7 @@ const Login = () => {
             alt="DYM VIETNAM LOGO"
             className="w-[344px] h-[144px] object-cover hidden md:block"
           />
-          <LoginGoogle />
+          {/*<LoginGoogle />*/}
         </div>
       </div>
     </div>
