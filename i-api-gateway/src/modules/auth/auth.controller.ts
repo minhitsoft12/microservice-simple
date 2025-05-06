@@ -1,15 +1,27 @@
-import {Body, Controller, Get, Logger, Post, Req, Request, Res, UseGuards} from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Logger,
+  Post,
+  Req,
+  Request,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { Public } from './decorators/public.decorator';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/tokens.dto';
 import { ApiRouteNames } from '../../shared/enums/api.enum';
-import {GoogleAuthGuard} from "./guards/google-auth.guard";
+import { GoogleAuthGuard } from './guards/google-auth.guard';
+import { ConfigService } from '@nestjs/config';
 
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
+  private readonly configService = new ConfigService();
   private readonly logger = new Logger(AuthController.name);
 
   constructor(private authService: AuthService) {}
@@ -34,7 +46,7 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Token refresh successful' })
   @ApiResponse({ status: 401, description: 'Invalid refresh token' })
   async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
-    return this.authService.refreshTokens(refreshTokenDto.refresh_token);
+    return this.authService.refreshTokens(refreshTokenDto.refreshToken);
   }
 
   @Get(ApiRouteNames.PROFILE)
@@ -55,17 +67,122 @@ export class AuthController {
   }
 
   @Public()
+  @Get('google-url')
+  @ApiOperation({ summary: 'Get Google login URL for frontend' })
+  getGoogleAuthUrl(@Request() req) {
+    const serviceName = req.query.service as string | undefined;
+    const googleLoginUrl = this.authService.getGoogleAuthUrl(serviceName);
+
+    return { url: googleLoginUrl };
+  }
+
+  @Public()
   @Get('google/callback')
   @UseGuards(GoogleAuthGuard)
-  @ApiOperation({ summary: 'Google auth callback' })
-  @ApiResponse({ status: 200, description: 'Login successful' })
   async googleAuthRedirect(@Req() req, @Res() res): Promise<any> {
-    this.logger.log(`Google login callback for user: ${req.user?.email}`);
-    const result = await this.authService.googleLogin(req.user);
+    this.logger.log('Google callback triggered');
 
-    // You can redirect to frontend with token as query param
-    // or handle this however you need based on your frontend setup
-    const redirectUrl = `http://localhost:3002/auth/callback?token=${result.access_token}&refresh=${result.refresh_token}`;
-    return res.redirect(redirectUrl);
+    // Extract the service from the state parameter
+    let service = 'default';
+    try {
+      if (req.query.state) {
+        const stateData = JSON.parse(
+          Buffer.from(req.query.state, 'base64').toString(),
+        );
+        service = stateData.service || 'default';
+      }
+    } catch (error) {
+      this.logger.error(`Failed to parse state parameter: ${error.message}`);
+    }
+
+    // Get the appropriate callback URL from config based on service
+    const callbackUrl = this.configService.get<string>(
+      `FRONTEND_CALLBACK_URL_${service.toUpperCase()}`,
+      this.configService.get<string>(
+        'FRONTEND_CALLBACK_URL_DEFAULT',
+        'http://localhost:3000/auth/callback',
+      ),
+    );
+
+    this.logger.log(
+      `Using callback URL for service ${service}: ${callbackUrl}`,
+    );
+
+    // Handle authentication errors
+    if (req.authError) {
+      let errorCode = 'authentication_failed';
+      let errorMessage = req.authError.message ?? 'Authentication failed';
+
+      this.logger.error(`Google auth error: ${req.authError.message}`);
+
+      if (errorMessage.includes('Domain not allowed')) {
+        errorMessage = 'Your email domain is not authorized';
+        errorCode = 'unauthorized_domain';
+      } else if (errorMessage.includes('Email not verified')) {
+        errorMessage = 'Email address not verified with Google';
+        errorCode = 'unverified_email';
+      }
+
+      const errorParams = new URLSearchParams({
+        error: errorCode,
+        message: errorMessage,
+        success: 'false',
+        service,
+      });
+
+      return res.redirect(`${callbackUrl}?${errorParams.toString()}`);
+    }
+
+    // If no user data despite no error, it's also an error condition
+    if (!req.user) {
+      this.logger.error('Google authentication failed: No user data received');
+
+      const errorParams = new URLSearchParams({
+        error: 'no_user_data',
+        message: 'No user data received from authentication provider',
+        success: 'false',
+        service,
+      });
+
+      return res.redirect(`${callbackUrl}?${errorParams.toString()}`);
+    }
+
+    this.logger.log(`Google login callback for user: ${req.user?.email}`);
+
+    try {
+      const { user: _, ...withoutUser } = await this.authService.googleLogin(
+        req.user,
+      );
+
+      const urlParams = new URLSearchParams({
+        ...withoutUser,
+        expiresIn: String(withoutUser.expiresIn),
+        success: 'true',
+        service,
+      });
+
+      // Build the redirect URL with tokens
+      const redirectUrl = `${callbackUrl}?${urlParams.toString()}`;
+
+      return res.redirect(redirectUrl);
+    } catch (error) {
+      this.logger.error(
+        `Error during Google login processing: ${error.message}`,
+        error.stack,
+      );
+
+      // Handle specific errors from the authService.googleLogin method
+      const errorMessage = 'Authentication processing failed';
+      const errorCode = 'processing_error';
+
+      const errorParams = new URLSearchParams({
+        error: errorCode,
+        message: errorMessage,
+        success: 'false',
+        service,
+      });
+
+      return res.redirect(`${callbackUrl}?${errorParams.toString()}`);
+    }
   }
 }

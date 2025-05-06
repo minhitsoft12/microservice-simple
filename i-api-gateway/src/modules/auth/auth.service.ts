@@ -1,7 +1,16 @@
-import { Inject, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ClientProxy } from '@nestjs/microservices';
-import { SERVICE_NAMES, User, UserServiceTCPMessages } from '@dym-vietnam/internal-shared';
+import {
+  SERVICE_NAMES,
+  User,
+  UserServiceTCPMessages,
+} from '@dym-vietnam/internal-shared';
 import { firstValueFrom } from 'rxjs';
 import { ConfigService } from '@nestjs/config';
 
@@ -62,9 +71,7 @@ export class AuthService {
     const userResponse = await this.sanitizeUser(user);
 
     return {
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
-      expires_in: tokens.expires_in,
+      ...tokens,
       user: userResponse,
     };
   }
@@ -75,7 +82,7 @@ export class AuthService {
       const findUserResponse = await firstValueFrom(
         // this.userServiceClient.send(UserServiceTCPMessages.GOOGLE_AUTH, {
         this.userServiceClient.send('USER.GOOGLE_AUTH', {
-          provider: "GOOGLE",
+          provider: 'GOOGLE',
           displayName: googleUser.name,
           providerId: googleUser.sub,
           picture: googleUser.picture,
@@ -84,7 +91,9 @@ export class AuthService {
       );
 
       if (findUserResponse.status !== 200) {
-        this.logger.error(`Google auth failed: ${findUserResponse?.data?.message}`);
+        this.logger.error(
+          `Google auth failed: ${findUserResponse?.data?.message}`,
+        );
         throw new UnauthorizedException('Google authentication failed');
       }
 
@@ -94,6 +103,29 @@ export class AuthService {
       this.logger.error(`Google login error: ${error.message}`, error.stack);
       throw new UnauthorizedException('Google authentication failed');
     }
+  }
+
+  getGoogleAuthUrl(service: string = 'default'): string {
+    const clientID = this.configService.get<string>('GOOGLE_CLIENT_ID', '');
+    const callbackURL = this.configService.get<string>(
+      'GOOGLE_CALLBACK_URL',
+      'http://localhost:4000/api/auth/google/callback',
+    );
+    const baseUrl = 'https://accounts.google.com/o/oauth2/v2/auth';
+
+    const state = Buffer.from(JSON.stringify({ service })).toString('base64');
+
+    const params = new URLSearchParams({
+      client_id: clientID,
+      redirect_uri: callbackURL,
+      response_type: 'code',
+      scope: 'email profile',
+      access_type: 'offline',
+      prompt: 'consent',
+      state: state,
+    });
+
+    return `${baseUrl}?${params.toString()}`;
   }
 
   async refreshTokens(refreshToken: string) {
@@ -119,11 +151,7 @@ export class AuthService {
       // Generate new tokens
       const tokens = this.generateTokens(user);
 
-      return {
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
-        expires_in: tokens.expires_in,
-      };
+      return tokens;
     } catch (error) {
       this.logger.error(`Token refresh error: ${error.message}`, error.stack);
       throw new UnauthorizedException('Invalid refresh token');
@@ -153,15 +181,15 @@ export class AuthService {
     const expiresIn = decodedToken.exp - Math.floor(Date.now() / 1000);
 
     return {
-      access_token: accessToken,
-      refresh_token: refreshToken,
-      expires_in: expiresIn,
+      accessToken,
+      refreshToken,
+      expiresIn,
     };
   }
 
   private async sanitizeUser(user: User) {
     // Create a copy without sensitive data
-    const { password, ...sanitizedUser } = user;
+    const { permissions: _, ...sanitizedUser } = user;
 
     try {
       const permissionsResponse = await firstValueFrom(
@@ -176,9 +204,14 @@ export class AuthService {
         );
         throw new UnauthorizedException('Failed to retrieve user permissions');
       }
-      return { ...sanitizedUser, permissions: permissionsResponse.data.permissions };
+      return {
+        ...sanitizedUser,
+        permissions: permissionsResponse.data.permissions,
+      };
     } catch (error) {
-      this.logger.error(`Failed to retrieve permissions for user: ${error.message}`);
+      this.logger.error(
+        `Failed to retrieve permissions for user: ${error.message}`,
+      );
     }
   }
 }
